@@ -3,6 +3,7 @@ import {
   Alert,
   Button,
   Container,
+  Grid,
   LinearProgress,
   Stack,
   TextField,
@@ -21,6 +22,8 @@ const videoManager = new VideoWorkerManager();
 export default function OsdOverlay() {
   const { t } = useTranslation("osdOverlay");
 
+  const canvasRef = React.useRef(null);
+
   const [videoFile, setVideoFile] = React.useState(null);
   const [osdFile, setOsdFile] = React.useState(null);
   const [fontFiles, setFontFiles] = React.useState(null);
@@ -37,7 +40,14 @@ export default function OsdOverlay() {
   const progressValue = progressMax ? (progress / progressMax) * 100 : 0;
 
   React.useEffect(() => {
-    const canvas = document.getElementById("preview");
+    const canvas = canvasRef.current;
+    const rect = canvas.getBoundingClientRect();
+    canvas.width = rect.width;
+    canvas.height = rect.height;
+  }, [canvasRef]);
+
+  React.useEffect(() => {
+    const canvas = canvasRef.current;
     const ctx = canvas.getContext("2d");
 
     videoManager.setCallbacks({
@@ -54,20 +64,23 @@ export default function OsdOverlay() {
         }
 
         if (preview) {
-          if (preview.width === 1280) {
-            canvas.width = 853;
-          } else {
-            canvas.width = 640;
-          }
+          const scale = Math.min(
+            canvas.width / preview.width,
+            canvas.height / preview.height
+          );
 
-          ctx.drawImage(preview, 0, 0, canvas.width, canvas.height);
-          preview.close();
+          const width = preview.width * scale;
+          const height = preview.height * scale;
+          const x = (canvas.width - width) / 2;
+          const y = (canvas.height - height) / 2;
+
+          ctx.drawImage(preview, x, y, width, height);
         }
       },
       onProgressInit: setProgressMax,
 
     });
-  }, [setInProgress, setProgress, setProgressMax]);
+  }, [canvasRef, setInProgress, setProgress, setProgressMax]);
 
   const handleStart = React.useCallback(async () => {
     const handle = await window.showSaveFilePicker({
@@ -114,16 +127,14 @@ export default function OsdOverlay() {
   return (
     <Container
       fixed
-      sx={{ paddingBottom: 3 }}
     >
       <Header />
 
-      <Stack
-        component="form"
-        spacing={2}
-        sx={{ marginBottom: 10 }} // Header covers up the button...
-      >
-        <Alert severity="info">
+      <Stack>
+        <Alert
+          severity="info"
+          sx={{ mb: 2 }}
+        >
           OSD recording is an opt-in feature on the goggle side.
           <pre style={{ marginBottom: 0 }}>
             $ package-config set msp-osd rec_enabled true
@@ -143,81 +154,101 @@ export default function OsdOverlay() {
           problems!
         </Alert>
 
-        {error && (
-          <Alert severity="error">
-            {error.message}
-          </Alert>
-        )}
-
-        <canvas
-          height="480"
-          id="preview"
-          style={{
-            display: "block",
-            backgroundColor: "black",
-            marginLeft: "auto",
-            marginRight: "auto",
-          }}
-          width="640"
-        />
-
-        <LinearProgress
-          color={
-            (inProgress
-              ? "primary"
-              : startedOnce
-                ? "success"
-                : "primary")
-          }
-          value={progressValue}
-          variant={
-            inProgress && progressValue >= 99 ? "indeterminate" : "determinate"
-          }
-        />
-
-        <TextField
-          InputLabelProps={{ shrink: true }}
-          disabled={inProgress}
-          id="videoFile"
-          inputProps={{ accept: ".mp4,video/mp4" }}
-          label={t("videoFile")}
-          onChange={handleVideoFileChange}
-          type="file"
-          variant="filled"
-        />
-
-        <TextField
-          InputLabelProps={{ shrink: true }}
-          disabled={inProgress}
-          id="osdFile"
-          inputProps={{ accept: ".osd" }}
-          label={t("osdFile")}
-          onChange={handleOsdFileChange}
-          type="file"
-          variant="filled"
-        />
-
-        <TextField
-          InputLabelProps={{ shrink: true }}
-          disabled={inProgress}
-          id="fontFiles"
-          inputProps={{
-            accept: ".bin",
-            multiple: true,
-          }}
-          label={t("fontFiles")}
-          onChange={handleFontFilesChange}
-          type="file"
-          variant="filled"
-        />
-
-        <Button
-          disabled={!startEnabled}
-          onClick={handleStart}
-          variant="contained"
+        <Grid
+          container
+          spacing={2}
         >
-          {inProgress ? t("processing") : t("start")}
-        </Button>
+          <Grid
+            item
+            md={3}
+          >
+            <Stack
+              spacing={2}
+              sx={{ height: "100%" }}
+            >
+              <TextField
+                InputLabelProps={{ shrink: true }}
+                disabled={inProgress}
+                id="videoFile"
+                inputProps={{ accept: ".mp4,video/mp4" }}
+                label={t("videoFile")}
+                onChange={handleVideoFileChange}
+                type="file"
+                variant="filled"
+              />
+
+              <TextField
+                InputLabelProps={{ shrink: true }}
+                disabled={inProgress}
+                id="osdFile"
+                inputProps={{ accept: ".osd" }}
+                label={t("osdFile")}
+                onChange={handleOsdFileChange}
+                type="file"
+                variant="filled"
+              />
+
+              <TextField
+                InputLabelProps={{ shrink: true }}
+                disabled={inProgress}
+                id="fontFiles"
+                inputProps={{
+                  accept: ".bin",
+                  multiple: true,
+                }}
+                label={t("fontFiles")}
+                onChange={handleFontFilesChange}
+                type="file"
+                variant="filled"
+              />
+
+              <LinearProgress
+                color={
+                  (inProgress
+                    ? "primary"
+                    : startedOnce
+                      ? "success"
+                      : "primary")
+                }
+                value={progressValue}
+                variant={
+                  inProgress && progressValue >= 99 ? "indeterminate" : "determinate"
+                }
+              />
+
+              <Button
+                disabled={!startEnabled}
+                onClick={handleStart}
+                variant="contained"
+              >
+                {inProgress ? t("processing") : t("start")}
+              </Button>
+            </Stack>
+          </Grid>
+
+          <Grid
+            item
+            md={9}
+          >
+            <Stack
+              spacing={2}
+            >
+              {error && (
+                <Alert severity="error">
+                  {error.message}
+                </Alert>
+              )}
+
+              <canvas
+                ref={canvasRef}
+                style={{
+                  backgroundColor: "black",
+                  flexGrow: 1,
+                }}
+              />
+            </Stack>
+          </Grid>
+        </Grid>
       </Stack>
     </Container>
   );
