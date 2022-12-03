@@ -16,7 +16,8 @@ export default class VideoWorkerManager {
       new URL("./worker", import.meta.url),
       { type: "module" }
     );
-    this.worker.onmessage = this.onMessage.bind(this);
+
+    this.worker.addEventListener("message", this.onMessage.bind(this));
   }
 
   setCallbacks(callbacks: VideoWorkerManagerCallbacks) {

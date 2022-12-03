@@ -1,10 +1,9 @@
+
 import { StreamDataView } from "stream-data-view";
-import {
-  MP4Parser, MP4Writer,
-} from "./mp4";
-import {
-  Avc1Box, AvcCBox,
-} from "./mp4/types";
+
+import VideoWorkerShared from "./shared";
+import { MP4Parser, MP4Writer } from "./mp4";
+import { Avc1Box, AvcCBox } from "./mp4/types";
 
 const MAX_QUEUE_SIZE = 60;
 const KEYFRAME_INTERVAL = 15;
@@ -96,56 +95,64 @@ export class Processor {
     this.outMp4 = new MP4Writer(outHandle);
     await this.outMp4.open();
 
-    const avc1box = this.inMp4.moov!.trak[0].mdia.minf.stbl.stsd
-      .entries[0] as Avc1Box;
-    const codec =
-      "avc1." +
-      avc1box.avcC.profileIndication.toString(16).padStart(2, "0") +
-      avc1box.avcC.profileCompatibility.toString(16).padStart(2, "0") +
-      avc1box.avcC.levelIndication.toString(16).padStart(2, "0");
-
-    this.decoder!.configure({
-      codec: codec,
-      codedWidth: this.inMp4.moov!.trak[0].tkhd.width,
-      codedHeight: this.inMp4.moov!.trak[0].tkhd.height,
-      description: avcCBoxToDescription(
-        (this.inMp4.moov!.trak[0].mdia.minf.stbl.stsd.entries[0] as Avc1Box)
-          .avcC
-      ),
-    });
-
     return {
       width: this.inMp4.moov!.trak[0].tkhd.width,
       height: this.inMp4.moov!.trak[0].tkhd.height,
-    }
+    };
   }
 
   process(options: { width: number; height: number }): Promise<void> {
-    let bitrate =
-      (this.inMp4!.mdat!.header!.size * 8 * this.inMp4!.moov!.mvhd.timescale) /
-      this.inMp4!.moov!.mvhd.duration;
-    bitrate = Math.ceil(bitrate / 5_000_000) * 5_000_000;
-
-    this.encoder!.configure({
-      codec: "avc1.42003d",
-      width: options.width,
-      height: options.height,
-      bitrate: bitrate,
-      framerate: 60,
-      latencyMode: "quality",
-    });
-
-    this.outMp4?.setDisplaySize({
-      width: options.width,
-      height: options.height,
-    });
-
-    this.expectedFrames = this.inMp4!.moov!.trak[0].mdia.mdhd.duration;
-    this.progressInit(this.expectedFrames);
-
-    return new Promise<void>((resolve, reject) => {
+    return new Promise((resolve, reject) => {
       this.processResolve = resolve;
       this.processReject = reject;
+
+      try {
+        const avc1box = this.inMp4!.moov!.trak[0].mdia.minf.stbl.stsd
+          .entries[0] as Avc1Box;
+        const codec =
+          "avc1." +
+          avc1box.avcC.profileIndication.toString(16).padStart(2, "0") +
+          avc1box.avcC.profileCompatibility.toString(16).padStart(2, "0") +
+          avc1box.avcC.levelIndication.toString(16).padStart(2, "0");
+
+        this.decoder!.configure({
+          codec: codec,
+          codedWidth: this.inMp4!.moov!.trak[0].tkhd.width,
+          codedHeight: this.inMp4!.moov!.trak[0].tkhd.height,
+          description: avcCBoxToDescription(
+            (this.inMp4!.moov!.trak[0].mdia.minf.stbl.stsd.entries[0] as Avc1Box)
+              .avcC
+          ),
+        });
+      } catch (e: any) {
+        throw new VideoWorkerShared.DecoderConfigureError(e);
+      }
+
+      try {
+        let bitrate =
+          (this.inMp4!.mdat!.header!.size * 8 * this.inMp4!.moov!.mvhd.timescale) /
+          this.inMp4!.moov!.mvhd.duration;
+        bitrate = Math.ceil(bitrate / 5_000_000) * 5_000_000;
+
+        this.encoder!.configure({
+          codec: "avc1.42003d",
+          width: options.width,
+          height: options.height,
+          bitrate: bitrate,
+          framerate: 60,
+          latencyMode: "quality",
+        });
+      } catch (e: any) {
+        throw new VideoWorkerShared.EncoderConfigureError(e);
+      }
+
+      this.outMp4?.setDisplaySize({
+        width: options.width,
+        height: options.height,
+      });
+
+      this.expectedFrames = this.inMp4!.moov!.trak[0].mdia.mdhd.duration;
+      this.progressInit(this.expectedFrames);
 
       this.decodeNextSamples();
     });
@@ -210,6 +217,7 @@ export class Processor {
 
       const sample = await this.inMp4!.getSample(this.queuedForDecode);
       if (sample.data.byteLength <= TINY_FRAME_SIZE) {
+        // TODO: I think this needs handled in order.
         console.warn(`Skipping tiny frame ${this.queuedForDecode}`);
         this.queuedForDecode++;
         this.framesDecoded++;
@@ -251,7 +259,9 @@ export class Processor {
       const modifiedFrame = this.modifyFrame!(frame, this.framesDecoded);
       frame.close();
 
-      this.encoder!.encode(modifiedFrame, { keyFrame: this.framesDecoded % KEYFRAME_INTERVAL === 0 });
+      this.encoder!.encode(modifiedFrame, {
+        keyFrame: this.framesDecoded % KEYFRAME_INTERVAL === 0,
+      });
 
       this.queuedForEncode++;
 
@@ -299,12 +309,12 @@ export class Processor {
   }
 
   private handleDecoderError(e: Error) {
-    this.processReject!(e);
+    this.processReject!(new VideoWorkerShared.DecoderError(e.message));
     throw e;
   }
 
   private handleEncoderError(e: Error) {
-    this.processReject!(e);
+    this.processReject!(new VideoWorkerShared.EncoderError(e.message));
     throw e;
   }
 }

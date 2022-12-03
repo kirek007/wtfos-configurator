@@ -37,7 +37,17 @@ export class VideoWorker {
     addEventListener("message", this.onMessage.bind(this)); // eslint-disable-line no-restricted-globals
   }
 
-  async process(width: number, height: number) {
+  async start(options: {
+    fontFiles: File[],
+    osdFile: File,
+    videoFile: File,
+    outHandle: FileSystemFileHandle,
+  }) {
+    this.osdReader = await OsdReader.fromFile(options.osdFile);
+    this.fontPack = await Font.fromFiles(options.fontFiles);
+
+    const { width, height } = await this.processor.open(options.videoFile, options.outHandle);
+
     if (width === 1280 && height === 720) {
       this.wide = true;
     }
@@ -70,10 +80,18 @@ export class VideoWorker {
     this.frameCanvas = new OffscreenCanvas(this.outWidth!, this.outHeight!);
     this.frameCtx = this.frameCanvas.getContext("2d")!;
 
-    await this.processor.process({
-      width: outWidth,
-      height: outHeight,
-    });
+    try {
+      await this.processor.process({
+        width: outWidth,
+        height: outHeight,
+      });
+    } catch (e: any) {
+      this.postMessage({
+        type: VideoWorkerShared.MessageType.ERROR,
+        error: e,
+      });
+      throw e;
+    }
   }
 
   modifyFrame(frame: VideoFrame, frameIndex: number): VideoFrame {
@@ -153,14 +171,14 @@ export class VideoWorker {
   }
 
   progressInit(expectedFrames: number) {
-    postMessage({
+    this.postMessage({
       type: VideoWorkerShared.MessageType.PROGRESS_INIT,
       expectedFrames,
     });
   }
 
   progressUpdate(currentFrame?: number, preview?: ImageBitmap) {
-    postMessage(
+    this.postMessage(
       {
         type: VideoWorkerShared.MessageType.PROGRESS_UPDATE,
         currentFrame,
@@ -170,24 +188,30 @@ export class VideoWorker {
     );
   }
 
-  async onMessage(event: MessageEvent<VideoWorkerShared.Message>) {
+  onMessage(event: MessageEvent<VideoWorkerShared.Message>) {
     const message = event.data;
     switch (message.type) {
       case VideoWorkerShared.MessageType.START: {
-        this.osdReader = await OsdReader.fromFile(message.osdFile);
-        this.fontPack = await Font.fromFiles(message.fontFiles);
-
-        const dimensions = await this.processor.open(message.videoFile, message.outHandle);
-        await this.process(dimensions.width, dimensions.height);
-
-        postMessage({ type: VideoWorkerShared.MessageType.COMPLETE } as VideoWorkerShared.CompleteMessage);
-
+        this.start({
+          fontFiles: message.fontFiles,
+          osdFile: message.osdFile,
+          videoFile: message.videoFile,
+          outHandle: message.outHandle,
+        });
         break;
       }
 
       default: {
         throw new Error("Unknown message type received");
       }
+    }
+  }
+
+  private postMessage(message: VideoWorkerShared.Message, transfer?: Transferable[]) {
+    if (transfer) {
+      postMessage(message, transfer);
+    } else {
+      postMessage(message);
     }
   }
 }

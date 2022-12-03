@@ -41,6 +41,37 @@ namespace VideoWorkerShared {
     | ProgressInitMessage
     | ProgressUpdateMessage
     | StartMessage;
+
+
+
+  export class DecoderError extends Error {
+    constructor(message: string) {
+      super(message);
+      this.name = "DecoderError";
+    }
+  }
+
+  export class DecoderConfigureError extends DecoderError {
+    constructor(message: string) {
+      super(message);
+      this.name = "DecoderConfigureError";
+    }
+  }
+
+  export class EncoderError extends Error {
+    constructor(message: string) {
+      super(message);
+      this.name = "EncoderError";
+    }
+  }
+
+  export class EncoderConfigureError extends EncoderError {
+    constructor(message: string) {
+      super(message);
+      this.name = "EncoderConfigureError";
+    }
+  }
+
 }
 
 export default VideoWorkerShared;

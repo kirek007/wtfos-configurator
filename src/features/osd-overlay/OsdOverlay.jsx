@@ -31,6 +31,8 @@ export default function OsdOverlay() {
   const [inProgress, setInProgress] = React.useState(false);
   const [startedOnce, setStartedOnce] = React.useState(false);
 
+  const [error, setError] = React.useState(null);
+
   const startEnabled = true;
   const progressValue = progressMax ? (progress / progressMax) * 100 : 0;
 
@@ -42,8 +44,9 @@ export default function OsdOverlay() {
       onComplete: () => {
         setInProgress(false);
       },
-      onError: (error) => {
-        console.error(error);
+      onError: (e) => {
+        setError(e);
+        setInProgress(false);
       },
       onProgressUpdate: (progress, preview) => {
         if (progress) {
@@ -139,6 +142,12 @@ export default function OsdOverlay() {
           Re-encoded, merged, or otherwise modified video files will cause
           problems!
         </Alert>
+
+        {error && (
+          <Alert severity="error">
+            {error.message}
+          </Alert>
+        )}
 
         <canvas
           height="480"
