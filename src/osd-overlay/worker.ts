@@ -85,6 +85,10 @@ export class VideoWorker {
         width: outWidth,
         height: outHeight,
       });
+
+      this.postMessage({
+        type: VideoWorkerShared.MessageType.COMPLETE,
+      });
     } catch (e: any) {
       this.postMessage({
         type: VideoWorkerShared.MessageType.ERROR,

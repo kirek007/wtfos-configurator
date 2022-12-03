@@ -301,6 +301,7 @@ export class Processor {
 
       if (this.framesEncoded === this.expectedFrames) {
         await this.outMp4?.close();
+        console.log(this.processResolve);
         this.processResolve!();
       } else {
         this.decodeNextSamples();
