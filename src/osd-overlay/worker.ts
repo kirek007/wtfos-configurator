@@ -29,7 +29,6 @@ export class VideoWorker {
 
   constructor() {
     this.processor = new Processor({
-      infoReady: this.infoReady.bind(this),
       modifyFrame: this.modifyFrame.bind(this),
       progressInit: this.progressInit.bind(this),
       progressUpdate: this.progressUpdate.bind(this),
@@ -38,7 +37,7 @@ export class VideoWorker {
     addEventListener("message", this.onMessage.bind(this)); // eslint-disable-line no-restricted-globals
   }
 
-  infoReady(width: number, height: number) {
+  async process(width: number, height: number) {
     if (width === 1280 && height === 720) {
       this.wide = true;
     }
@@ -71,7 +70,7 @@ export class VideoWorker {
     this.frameCanvas = new OffscreenCanvas(this.outWidth!, this.outHeight!);
     this.frameCtx = this.frameCanvas.getContext("2d")!;
 
-    this.processor.processSamples({
+    await this.processor.process({
       width: outWidth,
       height: outHeight,
     });
@@ -174,10 +173,15 @@ export class VideoWorker {
   async onMessage(event: MessageEvent<VideoWorkerShared.Message>) {
     const message = event.data;
     switch (message.type) {
-      case VideoWorkerShared.MessageType.FILE_IN: {
+      case VideoWorkerShared.MessageType.START: {
         this.osdReader = await OsdReader.fromFile(message.osdFile);
         this.fontPack = await Font.fromFiles(message.fontFiles);
-        await this.processor.processFile(message.videoFile, message.outHandle);
+
+        const dimensions = await this.processor.open(message.videoFile, message.outHandle);
+        await this.process(dimensions.width, dimensions.height);
+
+        postMessage({ type: VideoWorkerShared.MessageType.COMPLETE } as VideoWorkerShared.CompleteMessage);
+
         break;
       }
 

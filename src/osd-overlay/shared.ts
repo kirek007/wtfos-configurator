@@ -1,21 +1,19 @@
 namespace VideoWorkerShared {
   export const enum MessageType {
-    FILE_IN,
-    FILE_OUT,
+    COMPLETE,
+    ERROR,
     PROGRESS_INIT,
     PROGRESS_UPDATE,
+    START,
   }
 
-  export interface FileInMessage {
-    type: MessageType.FILE_IN;
-    fontFiles: File[];
-    osdFile: File;
-    videoFile: File;
-    outHandle: FileSystemFileHandle;
+  export interface CompleteMessage {
+    type: MessageType.COMPLETE;
   }
 
-  export interface FileOutMessage {
-    type: MessageType.FILE_OUT;
+  export interface ErrorMessage {
+    type: MessageType.ERROR;
+    error: Error;
   }
 
   export interface ProgressInitMessage {
@@ -29,11 +27,20 @@ namespace VideoWorkerShared {
     preview?: ImageBitmap;
   }
 
+  export interface StartMessage {
+    type: MessageType.START;
+    fontFiles: File[];
+    osdFile: File;
+    videoFile: File;
+    outHandle: FileSystemFileHandle;
+  }
+
   export type Message =
-    | FileInMessage
-    | FileOutMessage
+    | CompleteMessage
+    | ErrorMessage
     | ProgressInitMessage
-    | ProgressUpdateMessage;
+    | ProgressUpdateMessage
+    | StartMessage;
 }
 
 export default VideoWorkerShared;

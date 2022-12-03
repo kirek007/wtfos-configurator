@@ -39,7 +39,13 @@ export default function OsdOverlay() {
     const ctx = canvas.getContext("2d");
 
     videoManager.setCallbacks({
-      onProgress: (progress, preview) => {
+      onComplete: () => {
+        setInProgress(false);
+      },
+      onError: (error) => {
+        console.error(error);
+      },
+      onProgressUpdate: (progress, preview) => {
         if (progress) {
           setProgress(progress);
         }
@@ -56,9 +62,7 @@ export default function OsdOverlay() {
         }
       },
       onProgressInit: setProgressMax,
-      onFileOut: () => {
-        setInProgress(false);
-      },
+
     });
   }, [setInProgress, setProgress, setProgressMax]);
 
@@ -77,8 +81,8 @@ export default function OsdOverlay() {
     setInProgress(true);
     setStartedOnce(true);
 
-    videoManager.postMessage({
-      type: VideoWorkerShared.MessageType.FILE_IN,
+    videoManager.start({
+      type: VideoWorkerShared.MessageType.START,
       fontFiles: fontFiles,
       osdFile: osdFile,
       videoFile: videoFile,

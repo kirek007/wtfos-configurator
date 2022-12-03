@@ -1,9 +1,10 @@
 import VideoWorkerShared from "./shared";
 
 export interface VideoWorkerManagerCallbacks {
-  onProgress: (progress?: number, preview?: ImageBitmap) => void;
+  onComplete?: () => void;
+  onError?: (error: Error) => void;
   onProgressInit: (progressMax: number) => void;
-  onFileOut?: () => void;
+  onProgressUpdate: (progress?: number, preview?: ImageBitmap) => void;
 }
 
 export default class VideoWorkerManager {
@@ -26,11 +27,13 @@ export default class VideoWorkerManager {
     const message = event.data as VideoWorkerShared.Message;
 
     switch (message.type) {
-      case VideoWorkerShared.MessageType.FILE_OUT: {
-        if (this.callbacks?.onFileOut) {
-          this.callbacks.onFileOut();
-        }
+      case VideoWorkerShared.MessageType.COMPLETE: {
+        this.callbacks?.onComplete?.();
+        break;
+      }
 
+      case VideoWorkerShared.MessageType.ERROR: {
+        this.callbacks?.onError?.(message.error);
         break;
       }
 
@@ -40,7 +43,7 @@ export default class VideoWorkerManager {
       }
 
       case VideoWorkerShared.MessageType.PROGRESS_UPDATE: {
-        this.callbacks?.onProgress(message.currentFrame, message.preview);
+        this.callbacks?.onProgressUpdate(message.currentFrame, message.preview);
         break;
       }
 
@@ -50,7 +53,19 @@ export default class VideoWorkerManager {
     }
   }
 
-  postMessage(message: VideoWorkerShared.Message) {
+  start(options: {
+    fontFiles: File[],
+    osdFile: File,
+    outHandle: FileSystemFileHandle
+    videoFile: File,
+  }) {
+    this.postMessage({
+      type: VideoWorkerShared.MessageType.START,
+      ...options,
+    });
+  }
+
+  private postMessage(message: VideoWorkerShared.Message) {
     this.worker.postMessage(message);
   }
 }

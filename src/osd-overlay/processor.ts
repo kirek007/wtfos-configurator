@@ -1,4 +1,3 @@
-import VideoWorkerShared from "./shared";
 import { StreamDataView } from "stream-data-view";
 import {
   MP4Parser, MP4Writer,
@@ -39,13 +38,11 @@ function avcCBoxToDescription(avcCBox: AvcCBox): ArrayBuffer {
   return stream.getBuffer();
 }
 
-type InfoReadyCallback = (width: number, height: number) => void;
 type ModifyFrameCallback = (frame: VideoFrame, index: number) => VideoFrame;
 type ProgressInitCallback = (total: number) => void;
 type ProgressCallback = (processed?: number, preview?: ImageBitmap) => void;
 
 export interface ProcessorOptions {
-  infoReady: InfoReadyCallback;
   modifyFrame: ModifyFrameCallback;
   progressInit: ProgressInitCallback;
   progressUpdate: ProgressCallback;
@@ -64,7 +61,6 @@ export class Processor {
   queuedForDecode: number = 0;
   queuedForEncode: number = 0;
 
-  infoReady: InfoReadyCallback;
   modifyFrame: ModifyFrameCallback;
   progressInit: ProgressInitCallback;
   progressUpdate: ProgressCallback;
@@ -73,38 +69,16 @@ export class Processor {
   decoderPromise = Promise.resolve();
   encoderPromise = Promise.resolve();
 
+  processResolve?: () => void;
+  processReject?: (reason?: any) => void;
+
   constructor(options: ProcessorOptions) {
-    this.infoReady = options.infoReady;
     this.modifyFrame = options.modifyFrame;
     this.progressInit = options.progressInit;
     this.progressUpdate = options.progressUpdate;
   }
 
-  reset() {
-    if (this.encoder) {
-      this.encoder.close();
-    }
-
-    this.encoder = new VideoEncoder({
-      output: this.handleEncodedFrame.bind(this),
-      error: this.handleEncoderError.bind(this),
-    });
-
-    if (this.decoder) {
-      this.decoder.close();
-    }
-
-    this.decoder = new VideoDecoder({
-      output: this.handleDecodedFrame.bind(this),
-      error: this.handleDecoderError.bind(this),
-    });
-
-    this.samplePromise = Promise.resolve();
-    this.decoderPromise = Promise.resolve();
-    this.encoderPromise = Promise.resolve();
-  }
-
-  async processFile(file: File, outHandle: FileSystemFileHandle) {
+  async open(file: File, outHandle: FileSystemFileHandle) {
     this.reset();
 
     this.inMp4 = new MP4Parser(file);
@@ -138,16 +112,15 @@ export class Processor {
         (this.inMp4.moov!.trak[0].mdia.minf.stbl.stsd.entries[0] as Avc1Box)
           .avcC
       ),
-      optimizeForLatency: false,
     });
 
-    this.infoReady(
-      this.inMp4.moov!.trak[0].tkhd.width,
-      this.inMp4.moov!.trak[0].tkhd.height
-    );
+    return {
+      width: this.inMp4.moov!.trak[0].tkhd.width,
+      height: this.inMp4.moov!.trak[0].tkhd.height,
+    }
   }
 
-  processSamples(options: { width: number; height: number }) {
+  process(options: { width: number; height: number }): Promise<void> {
     let bitrate =
       (this.inMp4!.mdat!.header!.size * 8 * this.inMp4!.moov!.mvhd.timescale) /
       this.inMp4!.moov!.mvhd.duration;
@@ -167,17 +140,51 @@ export class Processor {
       height: options.height,
     });
 
+    this.expectedFrames = this.inMp4!.moov!.trak[0].mdia.mdhd.duration;
+    this.progressInit(this.expectedFrames);
+
+    return new Promise<void>((resolve, reject) => {
+      this.processResolve = resolve;
+      this.processReject = reject;
+
+      this.decodeNextSamples();
+    });
+  }
+
+  private reset() {
+    if (this.encoder) {
+      this.encoder.close();
+    }
+
+    this.encoder = new VideoEncoder({
+      output: this.handleEncodedFrame.bind(this),
+      error: this.handleEncoderError.bind(this),
+    });
+
+    if (this.decoder) {
+      this.decoder.close();
+    }
+
+    this.decoder = new VideoDecoder({
+      output: this.handleDecodedFrame.bind(this),
+      error: this.handleDecoderError.bind(this),
+    });
+
     this.framesDecoded = 0;
     this.framesEncoded = 0;
     this.queuedForDecode = 0;
     this.queuedForEncode = 0;
-    this.expectedFrames = this.inMp4!.moov!.trak[0].mdia.mdhd.duration;
-    this.progressInit(this.expectedFrames);
+    this.expectedFrames = 0;
 
-    this.decodeNextSamples();
+    this.samplePromise = Promise.resolve();
+    this.decoderPromise = Promise.resolve();
+    this.encoderPromise = Promise.resolve();
+
+    this.processResolve = undefined;
+    this.processReject = undefined;
   }
 
-  decodeNextSamples() {
+  private decodeNextSamples() {
     this.samplePromise = this.samplePromise.then(async () => {
       let remainingSamples = this.expectedFrames - this.queuedForDecode;
       if (remainingSamples <= 0) {
@@ -232,7 +239,7 @@ export class Processor {
     });
   }
 
-  handleDecodedFrame(frame: VideoFrame) {
+  private handleDecodedFrame(frame: VideoFrame) {
     this.decoderPromise = this.decoderPromise.then(async () => {
       if (this.framesDecoded % KEYFRAME_INTERVAL === 0) {
         // console.debug(
@@ -265,7 +272,7 @@ export class Processor {
     });
   }
 
-  handleEncodedFrame(
+  private handleEncodedFrame(
     chunk: EncodedVideoChunk,
     metadata: EncodedVideoChunkMetadata
   ) {
@@ -284,18 +291,20 @@ export class Processor {
 
       if (this.framesEncoded === this.expectedFrames) {
         await this.outMp4?.close();
-        postMessage({ type: VideoWorkerShared.MessageType.FILE_OUT } as VideoWorkerShared.FileOutMessage);
+        this.processResolve!();
       } else {
         this.decodeNextSamples();
       }
     });
   }
 
-  handleDecoderError(e: Error) {
+  private handleDecoderError(e: Error) {
+    this.processReject!(e);
     throw e;
   }
 
-  handleEncoderError(e: Error) {
+  private handleEncoderError(e: Error) {
+    this.processReject!(e);
     throw e;
   }
 }
