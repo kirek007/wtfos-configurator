@@ -43,7 +43,7 @@ export default function OsdOverlay() {
     const canvas = canvasRef.current;
     const rect = canvas.getBoundingClientRect();
     canvas.width = rect.width;
-    canvas.height = rect.height;
+    canvas.height = canvas.width * 9 / 16;
   }, [canvasRef]);
 
   React.useEffect(() => {
@@ -161,6 +161,7 @@ export default function OsdOverlay() {
           <Grid
             item
             md={3}
+            xs={12}
           >
             <Stack
               spacing={2}
@@ -229,6 +230,7 @@ export default function OsdOverlay() {
           <Grid
             item
             md={9}
+            xs={12}
           >
             <Stack
               spacing={2}
@@ -243,6 +245,7 @@ export default function OsdOverlay() {
                 ref={canvasRef}
                 style={{
                   backgroundColor: "black",
+                  borderRadius: 4,
                   flexGrow: 1,
                 }}
               />
