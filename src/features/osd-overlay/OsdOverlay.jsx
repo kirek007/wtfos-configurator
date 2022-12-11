@@ -6,10 +6,10 @@ import {
   Grid,
   LinearProgress,
   Stack,
-  TextField,
 } from "@mui/material";
 import { useTranslation } from "react-i18next";
 
+import FileDrop, { useFileDropState } from "./FileDrop";
 import VideoWorkerManager from "../../osd-overlay/manager";
 import VideoWorkerShared from "../../osd-overlay/shared";
 
@@ -24,9 +24,15 @@ export default function OsdOverlay() {
 
   const canvasRef = React.useRef(null);
 
-  const [videoFile, setVideoFile] = React.useState(null);
-  const [osdFile, setOsdFile] = React.useState(null);
-  const [fontFiles, setFontFiles] = React.useState(null);
+  const [files, setFiles] = useFileDropState();
+  const videoFile = files.videoFile;
+  const osdFile = files.osdFile;
+  const fontFiles = React.useMemo(() => ({
+    sd1: files.fontFileSd1,
+    sd2: files.fontFileSd2,
+    hd1: files.fontFileHd1,
+    hd2: files.fontFileHd2,
+  }), [files]);
 
   const [progress, setProgress] = React.useState(0);
   const [progressMax, setProgressMax] = React.useState(0);
@@ -36,7 +42,15 @@ export default function OsdOverlay() {
 
   const [error, setError] = React.useState(null);
 
-  const startEnabled = true;
+  const startEnabled = (
+    videoFile &&
+    osdFile &&
+    fontFiles.sd1 &&
+    fontFiles.sd2 &&
+    fontFiles.hd1 &&
+    fontFiles.hd2 &&
+    !inProgress
+  );
   const progressValue = progressMax ? (progress / progressMax) * 100 : 0;
 
   React.useEffect(() => {
@@ -112,17 +126,9 @@ export default function OsdOverlay() {
     videoFile,
   ]);
 
-  const handleVideoFileChange = React.useCallback((e) => {
-    setVideoFile(e.target.files[0]);
-  }, [setVideoFile]);
-
-  const handleOsdFileChange = React.useCallback((e) => {
-    setOsdFile(e.target.files[0]);
-  }, [setOsdFile]);
-
-  const handleFontFilesChange = React.useCallback((e) => {
-    setFontFiles([...e.target.files]);
-  }, [setFontFiles]);
+  const handleOnFilesChanged = React.useCallback((files) => {
+    setFiles(files);
+  }, [setFiles]);
 
   return (
     <Container
@@ -167,40 +173,9 @@ export default function OsdOverlay() {
               spacing={2}
               sx={{ height: "100%" }}
             >
-              <TextField
-                InputLabelProps={{ shrink: true }}
-                disabled={inProgress}
-                id="videoFile"
-                inputProps={{ accept: ".mp4,video/mp4" }}
-                label={t("videoFile")}
-                onChange={handleVideoFileChange}
-                type="file"
-                variant="filled"
-              />
-
-              <TextField
-                InputLabelProps={{ shrink: true }}
-                disabled={inProgress}
-                id="osdFile"
-                inputProps={{ accept: ".osd" }}
-                label={t("osdFile")}
-                onChange={handleOsdFileChange}
-                type="file"
-                variant="filled"
-              />
-
-              <TextField
-                InputLabelProps={{ shrink: true }}
-                disabled={inProgress}
-                id="fontFiles"
-                inputProps={{
-                  accept: ".bin",
-                  multiple: true,
-                }}
-                label={t("fontFiles")}
-                onChange={handleFontFilesChange}
-                type="file"
-                variant="filled"
+              <FileDrop
+                files={files}
+                onChange={handleOnFilesChanged}
               />
 
               <LinearProgress

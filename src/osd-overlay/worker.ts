@@ -3,7 +3,10 @@
 import VideoWorkerShared from "./shared";
 import { Processor } from "./processor";
 import {
-  Font, FontPack, TILES_PER_PAGE,
+  Font,
+  FontPack,
+  FontPackFiles,
+  TILES_PER_PAGE,
 } from "./fonts";
 import { OsdReader } from "./osd";
 
@@ -38,7 +41,7 @@ export class VideoWorker {
   }
 
   async start(options: {
-    fontFiles: File[],
+    fontFiles: FontPackFiles,
     osdFile: File,
     videoFile: File,
     outHandle: FileSystemFileHandle,

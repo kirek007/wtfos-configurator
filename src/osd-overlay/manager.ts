@@ -1,4 +1,5 @@
 import VideoWorkerShared from "./shared";
+import { FontPackFiles } from "./fonts";
 
 export interface VideoWorkerManagerCallbacks {
   onComplete?: () => void;
@@ -55,7 +56,7 @@ export default class VideoWorkerManager {
   }
 
   start(options: {
-    fontFiles: File[],
+    fontFiles: FontPackFiles,
     osdFile: File,
     outHandle: FileSystemFileHandle
     videoFile: File,

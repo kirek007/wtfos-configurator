@@ -1,3 +1,5 @@
+import { FontPackFiles } from "./fonts";
+
 namespace VideoWorkerShared {
   export const enum MessageType {
     COMPLETE,
@@ -29,7 +31,7 @@ namespace VideoWorkerShared {
 
   export interface StartMessage {
     type: MessageType.START;
-    fontFiles: File[];
+    fontFiles: FontPackFiles,
     osdFile: File;
     videoFile: File;
     outHandle: FileSystemFileHandle;

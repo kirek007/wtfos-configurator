@@ -13,6 +13,13 @@ export interface FontPack {
   hd2: Font;
 }
 
+export interface FontPackFiles {
+  sd1: File;
+  sd2: File;
+  hd1: File;
+  hd2: File;
+}
+
 export class Font {
   readonly name: string;
   readonly tiles: ImageBitmap[];
@@ -49,23 +56,12 @@ export class Font {
     return new Font(file.name, tiles);
   }
 
-  static async fromFiles(files: File[]): Promise<FontPack> {
-    const fonts = files.map((file) => Font.fromFile(file));
-    const fontPack = await Promise.all(fonts);
-
+  static async fromFiles(files: FontPackFiles): Promise<FontPack> {
     return {
-      sd1: fontPack.find(
-        (font) => !font.name.includes("_2") && !font.name.includes("hd")
-      )!,
-      sd2: fontPack.find(
-        (font) => font.name.includes("_2") && !font.name.includes("hd")
-      )!,
-      hd1: fontPack.find(
-        (font) => !font.name.includes("_2") && font.name.includes("hd")
-      )!,
-      hd2: fontPack.find(
-        (font) => font.name.includes("_2") && font.name.includes("hd")
-      )!,
+      sd1: await Font.fromFile(files.sd1),
+      sd2: await Font.fromFile(files.sd2),
+      hd1: await Font.fromFile(files.hd1),
+      hd2: await Font.fromFile(files.hd2),
     };
   }
 }
