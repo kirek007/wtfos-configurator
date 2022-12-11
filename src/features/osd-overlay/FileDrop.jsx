@@ -9,7 +9,7 @@ import {
 
 import VideoIcon from "@mui/icons-material/Videocam";
 import OsdIcon from "@mui/icons-material/Subtitles";
-import FontIcon from "@mui/icons-material/FontDownload";
+import FontIcon from "@mui/icons-material/EmojiSymbols";
 
 
 import FileDropEntry from "./FileDropEntry";
