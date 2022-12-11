@@ -139,7 +139,7 @@ export default function FileDrop(props) {
 
       <Stack spacing={1}>
         <Typography variant="body1">
-          You can drop any of your files here, or click to select them induvidually.
+          You can drop any of your files here, or click to select them individually.
         </Typography>
 
         <FileDropEntry
