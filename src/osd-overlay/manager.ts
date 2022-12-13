@@ -4,8 +4,19 @@ import { FontPackFiles } from "./fonts";
 export interface VideoWorkerManagerCallbacks {
   onComplete?: () => void;
   onError?: (error: Error) => void;
-  onProgressInit: (progressMax: number) => void;
-  onProgressUpdate: (progress?: number, preview?: ImageBitmap) => void;
+  onProgressInit: (options: {
+    expectedFrames: number;
+    tinyFramesDetected: number;
+  }) => void;
+  onProgressUpdate: (options: {
+    framesDecoded?: number;
+    framesEncoded?: number;
+    inDecoderQueue?: number;
+    inEncoderQueue?: number;
+    preview?: ImageBitmap;
+    queuedForDecode?: number;
+    queuedForEncode?: number;
+  }) => void;
 }
 
 export default class VideoWorkerManager {
@@ -40,12 +51,23 @@ export default class VideoWorkerManager {
       }
 
       case VideoWorkerShared.MessageType.PROGRESS_INIT: {
-        this.callbacks?.onProgressInit(message.expectedFrames);
+        this.callbacks?.onProgressInit({
+          expectedFrames: message.expectedFrames,
+          tinyFramesDetected: message.tinyFramesDetected,
+        });
         break;
       }
 
       case VideoWorkerShared.MessageType.PROGRESS_UPDATE: {
-        this.callbacks?.onProgressUpdate(message.currentFrame, message.preview);
+        this.callbacks?.onProgressUpdate({
+          framesDecoded: message.framesDecoded,
+          framesEncoded: message.framesEncoded,
+          inDecoderQueue: message.inDecoderQueue,
+          inEncoderQueue: message.inEncoderQueue,
+          preview: message.preview,
+          queuedForDecode: message.queuedForDecode,
+          queuedForEncode: message.queuedForEncode,
+        });
         break;
       }
 

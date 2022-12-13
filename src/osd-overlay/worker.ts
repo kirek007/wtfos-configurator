@@ -177,21 +177,31 @@ export class VideoWorker {
     return new VideoFrame(frameCanvas as any, { timestamp: frame.timestamp! });
   }
 
-  progressInit(expectedFrames: number) {
+  progressInit(options: {
+    expectedFrames: number;
+    tinyFramesDetected: number;
+  }) {
     this.postMessage({
       type: VideoWorkerShared.MessageType.PROGRESS_INIT,
-      expectedFrames,
+      ...options,
     });
   }
 
-  progressUpdate(currentFrame?: number, preview?: ImageBitmap) {
+  progressUpdate(options: {
+    framesDecoded?: number;
+    framesEncoded?: number;
+    preview?: ImageBitmap;
+    queuedForDecode?: number;
+    queuedForEncode?: number;
+    inEncoderQueue?: number;
+    inDecoderQueue?: number;
+  }) {
     this.postMessage(
       {
         type: VideoWorkerShared.MessageType.PROGRESS_UPDATE,
-        currentFrame,
-        preview,
+        ...options,
       },
-      [...(preview ? [preview] : [])]
+      [...(options.preview ? [options.preview] : [])]
     );
   }
 

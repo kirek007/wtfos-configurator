@@ -1,4 +1,4 @@
-
+/* eslint-disable no-restricted-globals */
 import { StreamDataView } from "stream-data-view";
 
 import VideoWorkerShared from "./shared";
@@ -8,6 +8,7 @@ import { Avc1Box, AvcCBox } from "./mp4/types";
 const MAX_QUEUE_SIZE = 60;
 const KEYFRAME_INTERVAL = 15;
 const TINY_FRAME_SIZE = 100;
+const PROGRESS_UPDATE_INTERVAL = 100;
 
 function avcCBoxToDescription(avcCBox: AvcCBox): ArrayBuffer {
   const stream = new StreamDataView(undefined, true);
@@ -38,8 +39,21 @@ function avcCBoxToDescription(avcCBox: AvcCBox): ArrayBuffer {
 }
 
 type ModifyFrameCallback = (frame: VideoFrame, index: number) => VideoFrame;
-type ProgressInitCallback = (total: number) => void;
-type ProgressCallback = (processed?: number, preview?: ImageBitmap) => void;
+
+type ProgressInitCallback = (options: {
+  expectedFrames: number;
+  tinyFramesDetected: number;
+}) => void;
+
+type ProgressCallback = (options: {
+  framesDecoded?: number;
+  framesEncoded?: number;
+  preview?: ImageBitmap;
+  queuedForDecode?: number;
+  queuedForEncode?: number;
+  inEncoderQueue?: number;
+  inDecoderQueue?: number;
+}) => void;
 
 export interface ProcessorOptions {
   modifyFrame: ModifyFrameCallback;
@@ -59,6 +73,7 @@ export class Processor {
   framesEncoded: number = 0;
   queuedForDecode: number = 0;
   queuedForEncode: number = 0;
+  tinyFramesDetected: number = 0;
 
   modifyFrame: ModifyFrameCallback;
   progressInit: ProgressInitCallback;
@@ -71,10 +86,14 @@ export class Processor {
   processResolve?: () => void;
   processReject?: (reason?: any) => void;
 
+  progressUpdateIntervalHandle?: number;
+
   constructor(options: ProcessorOptions) {
     this.modifyFrame = options.modifyFrame;
     this.progressInit = options.progressInit;
     this.progressUpdate = options.progressUpdate;
+
+    this.sendProgressUpdate = this.sendProgressUpdate.bind(this);
   }
 
   async open(file: File, outHandle: FileSystemFileHandle) {
@@ -89,6 +108,7 @@ export class Processor {
     ] of this.inMp4.moov!.trak[0].mdia.minf.stbl.stsz.sampleSizes.entries()) {
       if (size <= TINY_FRAME_SIZE) {
         console.warn(`Frame ${index} is too small (${size} bytes)!`);
+        this.tinyFramesDetected++;
       }
     }
 
@@ -152,7 +172,12 @@ export class Processor {
       });
 
       this.expectedFrames = this.inMp4!.moov!.trak[0].mdia.mdhd.duration;
-      this.progressInit(this.expectedFrames);
+      this.progressInit({
+        expectedFrames: this.expectedFrames,
+        tinyFramesDetected: this.tinyFramesDetected,
+      });
+
+      this.progressUpdateIntervalHandle = self.setInterval(this.sendProgressUpdate, PROGRESS_UPDATE_INTERVAL);
 
       this.decodeNextSamples();
     });
@@ -177,11 +202,12 @@ export class Processor {
       error: this.handleDecoderError.bind(this),
     });
 
+    this.expectedFrames = 0;
     this.framesDecoded = 0;
     this.framesEncoded = 0;
     this.queuedForDecode = 0;
     this.queuedForEncode = 0;
-    this.expectedFrames = 0;
+    this.tinyFramesDetected = 0;
 
     this.samplePromise = Promise.resolve();
     this.decoderPromise = Promise.resolve();
@@ -189,6 +215,10 @@ export class Processor {
 
     this.processResolve = undefined;
     this.processReject = undefined;
+
+    if (this.progressUpdateIntervalHandle) {
+      clearInterval(this.progressUpdateIntervalHandle);
+    }
   }
 
   private decodeNextSamples() {
@@ -236,7 +266,6 @@ export class Processor {
 
       this.decoder!.decode(chunk);
       this.queuedForDecode++;
-      remainingSamples--;
 
       if (this.inMp4?.isSampleSync(this.queuedForDecode)) {
         // Next frame is a keyframe, so flush.
@@ -264,10 +293,9 @@ export class Processor {
       });
 
       this.queuedForEncode++;
-
       if (this.framesDecoded % KEYFRAME_INTERVAL === 0) {
         createImageBitmap(modifiedFrame).then((previewBitmap) => {
-          this.progressUpdate(undefined, previewBitmap);
+          this.progressUpdate({ preview: previewBitmap });
         });
       }
       modifiedFrame.close();
@@ -297,9 +325,11 @@ export class Processor {
       chunk.copyTo(buffer);
 
       await this.outMp4!.writeSample(buffer, chunk.type === "key");
-      this.progressUpdate(this.framesEncoded);
 
       if (this.framesEncoded === this.expectedFrames) {
+        self.clearInterval(this.progressUpdateIntervalHandle!);
+        this.sendProgressUpdate();
+
         await this.outMp4?.close();
         this.processResolve!();
       } else {
@@ -316,5 +346,16 @@ export class Processor {
   private handleEncoderError(e: Error) {
     this.processReject!(new VideoWorkerShared.EncoderError(e.message));
     throw e;
+  }
+
+  private sendProgressUpdate() {
+    this.progressUpdate({
+      framesDecoded: this.framesDecoded,
+      framesEncoded: this.framesEncoded,
+      queuedForDecode: this.queuedForDecode,
+      queuedForEncode: this.queuedForEncode,
+      inDecoderQueue: this.decoder?.decodeQueueSize,
+      inEncoderQueue: this.encoder?.encodeQueueSize,
+    });
   }
 }

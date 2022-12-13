@@ -9,12 +9,14 @@ import {
 } from "@mui/material";
 import { useTranslation } from "react-i18next";
 
-import FileDrop, { useFileDropState } from "./FileDrop";
-import VideoWorkerManager from "../../osd-overlay/manager";
-import VideoWorkerShared from "../../osd-overlay/shared";
-
 
 import Header from "../navigation/Header";
+
+import DebugStats from "./DebugStats";
+import FileDrop, { useFileDropState } from "./FileDrop";
+
+import VideoWorkerManager from "../../osd-overlay/manager";
+import VideoWorkerShared from "../../osd-overlay/shared";
 
 
 const videoManager = new VideoWorkerManager();
@@ -36,6 +38,17 @@ export default function OsdOverlay() {
 
   const [progress, setProgress] = React.useState(0);
   const [progressMax, setProgressMax] = React.useState(0);
+
+  const [stats, setStats] = React.useState({
+    expectedFrames: null,
+    framesDecoded: null,
+    framesEncoded: null,
+    inDecoderQueue: null,
+    inEncoderQueue: null,
+    queuedForDecode: null,
+    queuedForEncode: null,
+    tinyFramesDetected: null,
+  });
 
   const [inProgress, setInProgress] = React.useState(false);
   const [startedOnce, setStartedOnce] = React.useState(false);
@@ -72,9 +85,19 @@ export default function OsdOverlay() {
         setError(e);
         setInProgress(false);
       },
-      onProgressUpdate: (progress, preview) => {
-        if (progress) {
-          setProgress(progress);
+      onProgressUpdate: (options) => {
+        const {
+          framesDecoded,
+          framesEncoded,
+          inDecoderQueue,
+          inEncoderQueue,
+          preview,
+          queuedForDecode,
+          queuedForEncode,
+        } = { ...options };
+
+        if (framesEncoded) {
+          setProgress(framesEncoded);
         }
 
         if (preview) {
@@ -90,11 +113,33 @@ export default function OsdOverlay() {
 
           ctx.drawImage(preview, x, y, width, height);
         }
-      },
-      onProgressInit: setProgressMax,
 
+        setStats((prevStats) => ({
+          ...prevStats,
+          framesDecoded: framesDecoded ?? prevStats.framesDecoded,
+          framesEncoded: framesEncoded ?? prevStats.framesEncoded,
+          inDecoderQueue: inDecoderQueue ?? prevStats.inDecoderQueue,
+          inEncoderQueue: inEncoderQueue ?? prevStats.inEncoderQueue,
+          queuedForDecode: queuedForDecode ?? prevStats.queuedForDecode,
+          queuedForEncode: queuedForEncode ?? prevStats.queuedForEncode,
+        }));
+      },
+      onProgressInit: (options) => {
+        const {
+          expectedFrames,
+          tinyFramesDetected,
+        } = options;
+
+        setProgress(0);
+        setProgressMax(expectedFrames);
+        setStats((prevStats) => ({
+          ...prevStats,
+          expectedFrames: expectedFrames ?? prevStats.expectedFrames,
+          tinyFramesDetected: tinyFramesDetected ?? prevStats.tinyFramesDetected,
+        }));
+      },
     });
-  }, [canvasRef, setInProgress, setProgress, setProgressMax]);
+  }, [canvasRef]);
 
   const handleStart = React.useCallback(async () => {
     const handle = await window.showSaveFilePicker({
@@ -178,20 +223,6 @@ export default function OsdOverlay() {
                 onChange={handleOnFilesChanged}
               />
 
-              <LinearProgress
-                color={
-                  (inProgress
-                    ? "primary"
-                    : startedOnce
-                      ? "success"
-                      : "primary")
-                }
-                value={progressValue}
-                variant={
-                  inProgress && progressValue >= 99 ? "indeterminate" : "determinate"
-                }
-              />
-
               <Button
                 disabled={!startEnabled}
                 onClick={handleStart}
@@ -223,6 +254,31 @@ export default function OsdOverlay() {
                   borderRadius: 4,
                   flexGrow: 1,
                 }}
+              />
+
+              <LinearProgress
+                color={
+                  (inProgress
+                    ? "primary"
+                    : startedOnce
+                      ? "success"
+                      : "primary")
+                }
+                value={progressValue}
+                variant={
+                  inProgress && progressValue >= 99 ? "indeterminate" : "determinate"
+                }
+              />
+
+              <DebugStats
+                expectedFrames={stats.expectedFrames}
+                framesDecoded={stats.framesDecoded}
+                framesEncoded={stats.framesEncoded}
+                inDecoderQueue={stats.inDecoderQueue}
+                inEncoderQueue={stats.inEncoderQueue}
+                queuedForDecode={stats.queuedForDecode}
+                queuedForEncode={stats.queuedForEncode}
+                tinyFramesDetected={stats.tinyFramesDetected}
               />
             </Stack>
           </Grid>

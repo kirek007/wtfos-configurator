@@ -20,13 +20,21 @@ namespace VideoWorkerShared {
 
   export interface ProgressInitMessage {
     type: MessageType.PROGRESS_INIT;
+
     expectedFrames: number;
+    tinyFramesDetected: number;
   }
 
   export interface ProgressUpdateMessage {
     type: MessageType.PROGRESS_UPDATE;
-    currentFrame?: number;
+
+    framesDecoded?: number;
+    framesEncoded?: number;
+    inDecoderQueue?: number;
+    inEncoderQueue?: number;
     preview?: ImageBitmap;
+    queuedForDecode?: number;
+    queuedForEncode?: number;
   }
 
   export interface StartMessage {
