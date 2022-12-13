@@ -225,29 +225,20 @@ export class Processor {
     this.samplePromise = this.samplePromise.then(async () => {
       let remainingSamples = this.expectedFrames - this.queuedForDecode;
       if (remainingSamples <= 0) {
-        // console.debug("No more samples to decode");
         return;
-      } else {
-        // console.debug(`Remaining samples: ${remainingSamples}`);
       }
 
-      // console.debug(
-      //   `Dec queue: ${this.decoder!.decodeQueueSize}, Enc queue: ${
-      //     this.encoder!.encodeQueueSize
-      //   }`
-      // );
       if (
         (this.decoder!.decodeQueueSize > MAX_QUEUE_SIZE ||
           this.encoder!.encodeQueueSize > MAX_QUEUE_SIZE) &&
         remainingSamples > MAX_QUEUE_SIZE
       ) {
-        // console.debug("Queues too full, not adding more samples");
         return;
       }
 
       const sample = await this.inMp4!.getSample(this.queuedForDecode);
       if (sample.data.byteLength <= TINY_FRAME_SIZE) {
-        // TODO: I think this needs handled in order.
+        // TODO: I think this needs handled in order, maybe? Works OK for me.
         console.warn(`Skipping tiny frame ${this.queuedForDecode}`);
         this.queuedForDecode++;
         this.framesDecoded++;
@@ -279,9 +270,6 @@ export class Processor {
   private handleDecodedFrame(frame: VideoFrame) {
     this.decoderPromise = this.decoderPromise.then(async () => {
       if (this.framesDecoded % KEYFRAME_INTERVAL === 0) {
-        // console.debug(
-        //   `Flushing encoder at decoded frame ${this.framesDecoded}, keyframe incoming.`
-        // );
         this.encoder!.flush();
       }
 
@@ -302,9 +290,6 @@ export class Processor {
 
       this.framesDecoded++;
       if (this.framesDecoded === this.expectedFrames - 1) {
-        // console.debug(
-        //   `Flushing encoder at decoded frame ${this.framesDecoded}, last frame.`
-        // );
         this.encoder!.flush();
       }
     });
@@ -320,7 +305,6 @@ export class Processor {
       }
       this.framesEncoded++;
 
-      // console.debug(`Encoded frame ${this.framesEncoded}`);
       const buffer = new ArrayBuffer(chunk.byteLength);
       chunk.copyTo(buffer);
 
