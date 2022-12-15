@@ -5,9 +5,9 @@ import VideoWorkerShared from "./shared";
 import { MP4Parser, MP4Writer } from "./mp4";
 import { Avc1Box, AvcCBox } from "./mp4/types";
 
-const MAX_QUEUE_SIZE = 60;
+const MAX_QUEUE_SIZE = 10;
 const KEYFRAME_INTERVAL = 15;
-const TINY_FRAME_SIZE = 100;
+const EMPTY_FRAME_SIZE = 100;
 const PROGRESS_UPDATE_INTERVAL = 100;
 
 function avcCBoxToDescription(avcCBox: AvcCBox): ArrayBuffer {
@@ -42,7 +42,7 @@ type ModifyFrameCallback = (frame: VideoFrame, index: number) => VideoFrame;
 
 type ProgressInitCallback = (options: {
   expectedFrames: number;
-  tinyFramesDetected: number;
+  emptyFramesDetected: number;
 }) => void;
 
 type ProgressCallback = (options: {
@@ -73,7 +73,7 @@ export class Processor {
   framesEncoded: number = 0;
   queuedForDecode: number = 0;
   queuedForEncode: number = 0;
-  tinyFramesDetected: number = 0;
+  emptyFramesDetected: number = 0;
 
   modifyFrame: ModifyFrameCallback;
   progressInit: ProgressInitCallback;
@@ -101,16 +101,6 @@ export class Processor {
 
     this.inMp4 = new MP4Parser(file);
     await this.inMp4.parse();
-
-    for (const [
-      index,
-      size,
-    ] of this.inMp4.moov!.trak[0].mdia.minf.stbl.stsz.sampleSizes.entries()) {
-      if (size <= TINY_FRAME_SIZE) {
-        console.warn(`Frame ${index} is too small (${size} bytes)!`);
-        this.tinyFramesDetected++;
-      }
-    }
 
     this.outMp4 = new MP4Writer(outHandle);
     await this.outMp4.open();
@@ -143,6 +133,7 @@ export class Processor {
             (this.inMp4!.moov!.trak[0].mdia.minf.stbl.stsd.entries[0] as Avc1Box)
               .avcC
           ),
+          optimizeForLatency: false,
         });
       } catch (e: any) {
         throw new VideoWorkerShared.DecoderConfigureError(e);
@@ -172,9 +163,25 @@ export class Processor {
       });
 
       this.expectedFrames = this.inMp4!.moov!.trak[0].mdia.mdhd.duration;
+
+      // HACK: Sometimes the last frame is empty, so let's just not process it.
+      // Scan through them all incase we find another oddball video with more than one.
+      for (const [
+        index,
+        size,
+      ] of this.inMp4!.moov!.trak[0].mdia.minf.stbl.stsz.sampleSizes.entries()) {
+        if (size <= EMPTY_FRAME_SIZE) {
+          const len = this.inMp4!.moov!.trak[0].mdia.minf.stbl.stsz.sampleSizes.length;
+
+          console.warn(`Frame ${index} (total ${len}) is too small (${size} bytes)! `);
+          this.emptyFramesDetected++;
+          this.expectedFrames--;
+        }
+      }
+
       this.progressInit({
         expectedFrames: this.expectedFrames,
-        tinyFramesDetected: this.tinyFramesDetected,
+        emptyFramesDetected: this.emptyFramesDetected,
       });
 
       this.progressUpdateIntervalHandle = self.setInterval(this.sendProgressUpdate, PROGRESS_UPDATE_INTERVAL);
@@ -207,7 +214,7 @@ export class Processor {
     this.framesEncoded = 0;
     this.queuedForDecode = 0;
     this.queuedForEncode = 0;
-    this.tinyFramesDetected = 0;
+    this.emptyFramesDetected = 0;
 
     this.samplePromise = Promise.resolve();
     this.decoderPromise = Promise.resolve();
@@ -237,21 +244,17 @@ export class Processor {
       }
 
       const sample = await this.inMp4!.getSample(this.queuedForDecode);
-      if (sample.data.byteLength <= TINY_FRAME_SIZE) {
-        // TODO: I think this needs handled in order, maybe? Works OK for me.
-        console.warn(`Skipping tiny frame ${this.queuedForDecode}`);
-        this.queuedForDecode++;
-        this.framesDecoded++;
-        this.queuedForEncode++;
-        this.framesEncoded++;
-        this.decodeNextSamples();
-        return;
+      if (sample.data.byteLength <= EMPTY_FRAME_SIZE) {
+        console.error(`Empty frame at ${this.queuedForDecode}! This should have been detected earlier!`)
+        const e = new Error("Empty frame detected!");
+        this.processReject!(e);
+        throw e;
       }
 
       const chunk = new EncodedVideoChunk({
         type: sample.sync ? "key" : "delta",
-        timestamp: 0,
-        duration: 60,
+        timestamp: this.queuedForDecode,
+        duration: 16670,
         data: sample.data.buffer,
       });
 

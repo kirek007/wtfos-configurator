@@ -22,7 +22,7 @@ namespace VideoWorkerShared {
     type: MessageType.PROGRESS_INIT;
 
     expectedFrames: number;
-    tinyFramesDetected: number;
+    emptyFramesDetected: number;
   }
 
   export interface ProgressUpdateMessage {

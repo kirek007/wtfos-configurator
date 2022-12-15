@@ -174,12 +174,12 @@ export class VideoWorker {
 
     frameCtx.drawImage(osdCanvas, osdXOffset, osdYOffset, osdWidth, osdHeight);
 
-    return new VideoFrame(frameCanvas as any, { timestamp: frame.timestamp! });
+    return new VideoFrame(frameCanvas as any, { timestamp: frame.timestamp!, duration: frame.duration! });
   }
 
   progressInit(options: {
     expectedFrames: number;
-    tinyFramesDetected: number;
+    emptyFramesDetected: number;
   }) {
     this.postMessage({
       type: VideoWorkerShared.MessageType.PROGRESS_INIT,

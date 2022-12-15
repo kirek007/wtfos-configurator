@@ -40,6 +40,7 @@ export default function OsdOverlay() {
   const [progressMax, setProgressMax] = React.useState(0);
 
   const [stats, setStats] = React.useState({
+    emptyFramesDetected: null,
     expectedFrames: null,
     framesDecoded: null,
     framesEncoded: null,
@@ -47,7 +48,6 @@ export default function OsdOverlay() {
     inEncoderQueue: null,
     queuedForDecode: null,
     queuedForEncode: null,
-    tinyFramesDetected: null,
   });
 
   const [inProgress, setInProgress] = React.useState(false);
@@ -127,15 +127,15 @@ export default function OsdOverlay() {
       onProgressInit: (options) => {
         const {
           expectedFrames,
-          tinyFramesDetected,
+          emptyFramesDetected,
         } = options;
 
         setProgress(0);
         setProgressMax(expectedFrames);
         setStats((prevStats) => ({
           ...prevStats,
+          emptyFramesDetected: emptyFramesDetected ?? prevStats.emptyFramesDetected,
           expectedFrames: expectedFrames ?? prevStats.expectedFrames,
-          tinyFramesDetected: tinyFramesDetected ?? prevStats.tinyFramesDetected,
         }));
       },
     });
@@ -271,6 +271,7 @@ export default function OsdOverlay() {
               />
 
               <DebugStats
+                emptyFramesDetected={stats.emptyFramesDetected}
                 expectedFrames={stats.expectedFrames}
                 framesDecoded={stats.framesDecoded}
                 framesEncoded={stats.framesEncoded}
@@ -278,7 +279,6 @@ export default function OsdOverlay() {
                 inEncoderQueue={stats.inEncoderQueue}
                 queuedForDecode={stats.queuedForDecode}
                 queuedForEncode={stats.queuedForEncode}
-                tinyFramesDetected={stats.tinyFramesDetected}
               />
             </Stack>
           </Grid>

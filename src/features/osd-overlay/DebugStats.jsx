@@ -25,8 +25,8 @@ export default function DebugStats(props) {
       name: "Expected Frames",
     },
     {
-      key: "tinyFramesDetected",
-      name: "Tiny Frames Detected",
+      key: "emptyFramesDetected",
+      name: "Empty Frames Detected",
     },
     {
       key: "framesDecoded",
@@ -107,6 +107,7 @@ export default function DebugStats(props) {
 }
 
 DebugStats.propTypes = {
+  emptyFramesDetected: PropTypes.number,
   expectedFrames: PropTypes.number,
   framesDecoded: PropTypes.number,
   framesEncoded: PropTypes.number,
@@ -114,10 +115,10 @@ DebugStats.propTypes = {
   inEncoderQueue: PropTypes.number,
   queuedForDecode: PropTypes.number,
   queuedForEncode: PropTypes.number,
-  tinyFramesDetected: PropTypes.number,
 };
 
 DebugStats.defaultProps = {
+  emptyFramesDetected: null,
   expectedFrames: null,
   framesDecoded: null,
   framesEncoded: null,
@@ -125,5 +126,4 @@ DebugStats.defaultProps = {
   inEncoderQueue: null,
   queuedForDecode: null,
   queuedForEncode: null,
-  tinyFramesDetected: null,
 };
