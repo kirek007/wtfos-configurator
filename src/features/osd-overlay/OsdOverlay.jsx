@@ -179,12 +179,13 @@ export default function OsdOverlay() {
     >
       <Header />
 
-      <Stack>
+      <Stack sx={{ mb: 8 }}>
         <Alert
           severity="info"
           sx={{ mb: 2 }}
         >
-          OSD recording is an opt-in feature on the goggle side.
+          {t("noteHeader")}
+
           <pre style={{ marginBottom: 0 }}>
             $ package-config set msp-osd rec_enabled true
             <br />
@@ -194,13 +195,8 @@ export default function OsdOverlay() {
           <br />
 
           <strong>
-            Only video files directly from the goggles are supported.
+            {t("noteWarning")}
           </strong>
-
-          <br />
-
-          Re-encoded, merged, or otherwise modified video files will cause
-          problems!
         </Alert>
 
         <Grid

@@ -1,5 +1,6 @@
 import React from "react";
 import PropTypes from "prop-types";
+import { useTranslation } from "react-i18next";
 
 import {
   Typography,
@@ -10,7 +11,6 @@ import {
 import VideoIcon from "@mui/icons-material/Videocam";
 import OsdIcon from "@mui/icons-material/Subtitles";
 import FontIcon from "@mui/icons-material/EmojiSymbols";
-
 
 import FileDropEntry from "./FileDropEntry";
 
@@ -35,6 +35,8 @@ export default function FileDrop(props) {
     files,
     onChange,
   } = props;
+  const { t } = useTranslation("osdOverlay");
+
   const inputRef = React.useRef(null);
 
   const setFilesFromFileList = React.useCallback((fileList) => {
@@ -139,43 +141,43 @@ export default function FileDrop(props) {
 
       <Stack spacing={1}>
         <Typography variant="body1">
-          You can drop any of your files here, or click to select them individually.
+          {t("fileDropHelp")}
         </Typography>
 
         <FileDropEntry
           file={files.videoFile}
           icon={VideoIcon}
-          label="Video"
+          label={t("fileDropVideo")}
         />
 
         <FileDropEntry
           file={files.osdFile}
           icon={OsdIcon}
-          label="OSD"
+          label={t("fileDropOsd")}
         />
 
         <FileDropEntry
           file={files.fontFileSd1}
           icon={FontIcon}
-          label="Font 1 (SD)"
+          label={t("fileDropFontSd1")}
         />
 
         <FileDropEntry
           file={files.fontFileSd2}
           icon={FontIcon}
-          label="Font 2 (SD)"
+          label={t("fileDropFontSd2")}
         />
 
         <FileDropEntry
           file={files.fontFileHd1}
           icon={FontIcon}
-          label="Font 1 (HD)"
+          label={t("fileDropFontHd1")}
         />
 
         <FileDropEntry
           file={files.fontFileHd2}
           icon={FontIcon}
-          label="Font 2 (HD)"
+          label={t("fileDropFontHd2")}
         />
       </Stack>
     </Paper>

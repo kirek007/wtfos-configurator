@@ -1,5 +1,6 @@
 import React from "react";
 import PropTypes from "prop-types";
+import { useTranslation } from "react-i18next";
 
 import {
   Box,
@@ -14,6 +15,8 @@ import {
 } from "@mui/icons-material";
 
 export default function FileDropEntry(props) {
+  const { t } = useTranslation("osdOverlay");
+
   const {
     file,
     icon: Icon,
@@ -55,7 +58,7 @@ export default function FileDropEntry(props) {
         <Typography
           variant="body2"
         >
-          {file ? file.name : "No file selected"}
+          {file ? file.name : t("fileDropEntryNoSelection")}
         </Typography>
       </Stack>
     </Card>

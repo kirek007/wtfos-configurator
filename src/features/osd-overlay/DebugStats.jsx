@@ -3,6 +3,7 @@
 
 import React from "react";
 import PropTypes from "prop-types";
+import { useTranslation } from "react-i18next";
 
 import {
   Paper,
@@ -19,38 +20,40 @@ import {
 import SettingsIcon from "@mui/icons-material/Settings";
 
 export default function DebugStats(props) {
+  const { t } = useTranslation("osdOverlay");
+
   const statsTableDef = [
     {
       key: "expectedFrames",
-      name: "Expected Frames",
+      name: t("debugStatsExpectedFrames"),
     },
     {
       key: "framesDecoded",
-      name: "Frames Decoded",
+      name: t("debugStatsFramesDecoded"),
     },
     {
       key: "framesDecodedMissing",
-      name: "Frames Decoded (Missing)",
+      name: t("debugStatsFramesDecodedMissing"),
     },
     {
       key: "framesEncoded",
-      name: "Frames Encoded",
+      name: t("debugStatsFramesEncoded"),
     },
     {
       key: "queuedForDecode",
-      name: "Queued for Decode",
+      name: t("debugStatsQueuedForDecode"),
     },
     {
       key: "queuedForEncode",
-      name: "Queued for Encode",
+      name: t("debugStatsQueuedForEncode"),
     },
     {
       key: "inDecoderQueue",
-      name: "In Decoder Queue",
+      name: t("debugStatsInDecoderQueue"),
     },
     {
       key: "inEncoderQueue",
-      name: "In Encoder Queue",
+      name: t("debugStatsInEncoderQueue"),
     },
   ];
 
@@ -91,7 +94,7 @@ export default function DebugStats(props) {
                 <SettingsIcon />
 
                 <Typography variant="body1">
-                  Debug Stats
+                  {t("debugStatsTitle")}
                 </Typography>
               </Stack>
             </TableCell>
