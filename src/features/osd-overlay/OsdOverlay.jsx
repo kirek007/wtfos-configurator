@@ -40,9 +40,9 @@ export default function OsdOverlay() {
   const [progressMax, setProgressMax] = React.useState(0);
 
   const [stats, setStats] = React.useState({
-    emptyFramesDetected: null,
     expectedFrames: null,
     framesDecoded: null,
+    framesDecodedMissing: null,
     framesEncoded: null,
     inDecoderQueue: null,
     inEncoderQueue: null,
@@ -88,6 +88,7 @@ export default function OsdOverlay() {
       onProgressUpdate: (options) => {
         const {
           framesDecoded,
+          framesDecodedMissing,
           framesEncoded,
           inDecoderQueue,
           inEncoderQueue,
@@ -117,6 +118,7 @@ export default function OsdOverlay() {
         setStats((prevStats) => ({
           ...prevStats,
           framesDecoded: framesDecoded ?? prevStats.framesDecoded,
+          framesDecodedMissing: framesDecodedMissing ?? prevStats.framesDecodedMissing,
           framesEncoded: framesEncoded ?? prevStats.framesEncoded,
           inDecoderQueue: inDecoderQueue ?? prevStats.inDecoderQueue,
           inEncoderQueue: inEncoderQueue ?? prevStats.inEncoderQueue,
@@ -125,16 +127,12 @@ export default function OsdOverlay() {
         }));
       },
       onProgressInit: (options) => {
-        const {
-          expectedFrames,
-          emptyFramesDetected,
-        } = options;
+        const { expectedFrames } = options;
 
         setProgress(0);
         setProgressMax(expectedFrames);
         setStats((prevStats) => ({
           ...prevStats,
-          emptyFramesDetected: emptyFramesDetected ?? prevStats.emptyFramesDetected,
           expectedFrames: expectedFrames ?? prevStats.expectedFrames,
         }));
       },
@@ -271,9 +269,9 @@ export default function OsdOverlay() {
               />
 
               <DebugStats
-                emptyFramesDetected={stats.emptyFramesDetected}
                 expectedFrames={stats.expectedFrames}
                 framesDecoded={stats.framesDecoded}
+                framesDecodedMissing={stats.framesDecodedMissing}
                 framesEncoded={stats.framesEncoded}
                 inDecoderQueue={stats.inDecoderQueue}
                 inEncoderQueue={stats.inEncoderQueue}

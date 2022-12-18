@@ -83,6 +83,8 @@ export class VideoWorker {
     this.frameCanvas = new OffscreenCanvas(this.outWidth!, this.outHeight!);
     this.frameCtx = this.frameCanvas.getContext("2d")!;
 
+    this.lastOsdIndex = 0;
+
     try {
       await this.processor.process({
         width: outWidth,
@@ -101,7 +103,7 @@ export class VideoWorker {
     }
   }
 
-  modifyFrame(frame: VideoFrame, frameIndex: number): VideoFrame {
+  modifyFrame(frame: ImageBitmap, frameIndex: number): ImageBitmap {
     const osdCanvas = this.osdCanvas!;
     const osdCtx = this.osdCtx!;
     const frameCanvas = this.frameCanvas!;
@@ -113,7 +115,7 @@ export class VideoWorker {
 
     let frameXOffset: number;
     if (this.hd || this.wide) {
-      frameXOffset = (this.outWidth! - frame.displayWidth) / 2;
+      frameXOffset = (this.outWidth! - frame.width) / 2;
     } else {
       frameXOffset = 0;
     }
@@ -174,12 +176,11 @@ export class VideoWorker {
 
     frameCtx.drawImage(osdCanvas, osdXOffset, osdYOffset, osdWidth, osdHeight);
 
-    return new VideoFrame(frameCanvas as any, { timestamp: frame.timestamp!, duration: frame.duration! });
+    return frameCanvas.transferToImageBitmap();
   }
 
   progressInit(options: {
     expectedFrames: number;
-    emptyFramesDetected: number;
   }) {
     this.postMessage({
       type: VideoWorkerShared.MessageType.PROGRESS_INIT,
@@ -189,6 +190,7 @@ export class VideoWorker {
 
   progressUpdate(options: {
     framesDecoded?: number;
+    framesDecodedMissing?: number;
     framesEncoded?: number;
     preview?: ImageBitmap;
     queuedForDecode?: number;

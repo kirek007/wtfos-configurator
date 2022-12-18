@@ -5,9 +5,6 @@ import VideoWorkerShared from "./shared";
 import { MP4Parser, MP4Writer } from "./mp4";
 import { Avc1Box, AvcCBox } from "./mp4/types";
 
-const MAX_QUEUE_SIZE = 10;
-const KEYFRAME_INTERVAL = 15;
-const EMPTY_FRAME_SIZE = 100;
 const PROGRESS_UPDATE_INTERVAL = 100;
 
 function avcCBoxToDescription(avcCBox: AvcCBox): ArrayBuffer {
@@ -38,15 +35,15 @@ function avcCBoxToDescription(avcCBox: AvcCBox): ArrayBuffer {
   return stream.getBuffer();
 }
 
-type ModifyFrameCallback = (frame: VideoFrame, index: number) => VideoFrame;
+type ModifyFrameCallback = (frame: ImageBitmap, index: number) => ImageBitmap;
 
 type ProgressInitCallback = (options: {
   expectedFrames: number;
-  emptyFramesDetected: number;
 }) => void;
 
 type ProgressCallback = (options: {
   framesDecoded?: number;
+  framesDecodedMissing?: number;
   framesEncoded?: number;
   preview?: ImageBitmap;
   queuedForDecode?: number;
@@ -61,6 +58,18 @@ export interface ProcessorOptions {
   progressUpdate: ProgressCallback;
 }
 
+interface DecodedFrame {
+  index: number;
+  image?: ImageBitmap
+  sync: boolean;
+}
+
+interface EncodedFrame {
+  data: ArrayBuffer;
+  timestamp: number;
+  sync: boolean;
+}
+
 export class Processor {
   decoder?: VideoDecoder;
   encoder?: VideoEncoder;
@@ -70,23 +79,22 @@ export class Processor {
 
   expectedFrames: number = 0;
   framesDecoded: number = 0;
+  framesDecodedMissing: number = 0;
   framesEncoded: number = 0;
   queuedForDecode: number = 0;
   queuedForEncode: number = 0;
-  emptyFramesDetected: number = 0;
 
   modifyFrame: ModifyFrameCallback;
   progressInit: ProgressInitCallback;
   progressUpdate: ProgressCallback;
 
-  samplePromise = Promise.resolve();
-  decoderPromise = Promise.resolve();
-  encoderPromise = Promise.resolve();
-
   processResolve?: () => void;
   processReject?: (reason?: any) => void;
 
   progressUpdateIntervalHandle?: number;
+
+  decodedFrames: Record<number, DecodedFrame> = {};
+  encodedFrames: EncodedFrame[] = [];
 
   constructor(options: ProcessorOptions) {
     this.modifyFrame = options.modifyFrame;
@@ -163,30 +171,15 @@ export class Processor {
       });
 
       this.expectedFrames = this.inMp4!.moov!.trak[0].mdia.mdhd.duration;
-
-      // HACK: Sometimes the last frame is empty, so let's just not process it.
-      // Scan through them all incase we find another oddball video with more than one.
-      for (const [
-        index,
-        size,
-      ] of this.inMp4!.moov!.trak[0].mdia.minf.stbl.stsz.sampleSizes.entries()) {
-        if (size <= EMPTY_FRAME_SIZE) {
-          const len = this.inMp4!.moov!.trak[0].mdia.minf.stbl.stsz.sampleSizes.length;
-
-          console.warn(`Frame ${index} (total ${len}) is too small (${size} bytes)! `);
-          this.emptyFramesDetected++;
-          this.expectedFrames--;
-        }
-      }
+      this.decodedFrames = {};
 
       this.progressInit({
         expectedFrames: this.expectedFrames,
-        emptyFramesDetected: this.emptyFramesDetected,
       });
 
       this.progressUpdateIntervalHandle = self.setInterval(this.sendProgressUpdate, PROGRESS_UPDATE_INTERVAL);
 
-      this.decodeNextSamples();
+      this.processSamples();
     });
   }
 
@@ -211,14 +204,10 @@ export class Processor {
 
     this.expectedFrames = 0;
     this.framesDecoded = 0;
+    this.framesDecodedMissing = 0;
     this.framesEncoded = 0;
     this.queuedForDecode = 0;
     this.queuedForEncode = 0;
-    this.emptyFramesDetected = 0;
-
-    this.samplePromise = Promise.resolve();
-    this.decoderPromise = Promise.resolve();
-    this.encoderPromise = Promise.resolve();
 
     this.processResolve = undefined;
     this.processReject = undefined;
@@ -228,101 +217,117 @@ export class Processor {
     }
   }
 
-  private decodeNextSamples() {
-    this.samplePromise = this.samplePromise.then(async () => {
-      let remainingSamples = this.expectedFrames - this.queuedForDecode;
-      if (remainingSamples <= 0) {
-        return;
+  private async processSamples() {
+    let lastSampleIndex = 0;
+    while (lastSampleIndex < this.expectedFrames) {
+      // Load samples up to next keyframe.
+      const sampleChunks = [];
+      for (let sampleIndex = lastSampleIndex; sampleIndex < this.expectedFrames; sampleIndex++) {
+        const sample = await this.inMp4!.getSample(sampleIndex);
+        sampleChunks.push({
+          index: sampleIndex,
+          data: sample.data.buffer,
+          sync: sample.sync,
+        });
+
+        if (sampleIndex + 1 < this.expectedFrames && this.inMp4!.isSampleSync(sampleIndex + 1)) {
+          break;
+        }
       }
 
-      if (
-        (this.decoder!.decodeQueueSize > MAX_QUEUE_SIZE ||
-          this.encoder!.encodeQueueSize > MAX_QUEUE_SIZE) &&
-        remainingSamples > MAX_QUEUE_SIZE
-      ) {
-        return;
+      // Prepare expected frames object, which the callback will toot into.
+      this.decodedFrames = {};
+      for (const chunk of sampleChunks) {
+        this.decodedFrames[chunk.index] = {
+          index: chunk.index,
+          image: undefined,
+          sync: chunk.sync,
+        }
       }
 
-      const sample = await this.inMp4!.getSample(this.queuedForDecode);
-      if (sample.data.byteLength <= EMPTY_FRAME_SIZE) {
-        console.error(`Empty frame at ${this.queuedForDecode}! This should have been detected earlier!`)
-        const e = new Error("Empty frame detected!");
-        this.processReject!(e);
-        throw e;
+      // Enqueue samples for decoding.
+      for (const chunk of sampleChunks) {
+        const encodedChunk = new EncodedVideoChunk({
+          type: chunk.sync ? "key" : "delta",
+          timestamp: chunk.index,
+          duration: 16670,
+          data: chunk.data,
+        });
+
+        this.decoder!.decode(encodedChunk);
+        lastSampleIndex = chunk.index + 1;
+        this.queuedForDecode++;
       }
 
-      const chunk = new EncodedVideoChunk({
-        type: sample.sync ? "key" : "delta",
-        timestamp: this.queuedForDecode,
-        duration: 16670,
-        data: sample.data.buffer,
-      });
+      // Wait for all samples to be decoded.
+      await this.decoder!.flush();
 
-      this.decoder!.decode(chunk);
-      this.queuedForDecode++;
+      // Modify and enque frames for encoding.
+      this.encodedFrames = [];
+      for (const [index, entry] of Object.values(this.decodedFrames).entries()) {
+        if (!entry.image) {
+          console.error(`Frame ${entry.index} was never decoded!`);
+          this.framesDecodedMissing++;
+          continue;
+        }
 
-      if (this.inMp4?.isSampleSync(this.queuedForDecode)) {
-        // Next frame is a keyframe, so flush.
-        this.decoder!.flush();
+        const modifiedFrame = this.modifyFrame(entry.image!, entry.index);
+        const frame = new VideoFrame(modifiedFrame, {
+          duration: 16670,
+          timestamp: entry.index,
+        });
+
+        // Send first frame as preview. This needs to happen after constructing the frame otherwise
+        // it complains that "the image source is detached" which is completely ungooglable.
+        if (index === 0) {
+          this.progressUpdate({
+            preview: modifiedFrame
+          })
+        }
+
+        this.encoder!.encode(frame, { keyFrame: entry.sync });
+        this.queuedForEncode++;
+        frame.close();
       }
 
-      this.decodeNextSamples();
-    });
+      // Wait for all frames to be encoded.
+      await this.encoder!.flush();
+
+      // Write encoded frames to output.
+      for (const frame of this.encodedFrames) {
+        this.outMp4!.writeSample(frame.data, frame.sync);
+      }
+    }
+
+    await this.outMp4!.close();
+    this.sendProgressUpdate();
+    this.processResolve!();
   }
 
-  private handleDecodedFrame(frame: VideoFrame) {
-    this.decoderPromise = this.decoderPromise.then(async () => {
-      if (this.framesDecoded % KEYFRAME_INTERVAL === 0) {
-        this.encoder!.flush();
-      }
-
-      const modifiedFrame = this.modifyFrame!(frame, this.framesDecoded);
-      frame.close();
-
-      this.encoder!.encode(modifiedFrame, {
-        keyFrame: this.framesDecoded % KEYFRAME_INTERVAL === 0,
-      });
-
-      this.queuedForEncode++;
-      if (this.framesDecoded % KEYFRAME_INTERVAL === 0) {
-        createImageBitmap(modifiedFrame).then((previewBitmap) => {
-          this.progressUpdate({ preview: previewBitmap });
-        });
-      }
-      modifiedFrame.close();
-
-      this.framesDecoded++;
-      if (this.framesDecoded === this.expectedFrames - 1) {
-        this.encoder!.flush();
-      }
-    });
+  private async handleDecodedFrame(frame: VideoFrame) {
+    this.framesDecoded++;
+    this.decodedFrames[frame.timestamp!].image = await createImageBitmap(frame);
+    frame.close();
   }
 
   private handleEncodedFrame(
     chunk: EncodedVideoChunk,
     metadata: EncodedVideoChunkMetadata
   ) {
-    this.encoderPromise = this.encoderPromise.then(async () => {
-      if (this.framesEncoded === 0) {
-        this.outMp4!.setAvcC(metadata.decoderConfig?.description!);
-      }
-      this.framesEncoded++;
+    this.framesEncoded++;
 
-      const buffer = new ArrayBuffer(chunk.byteLength);
-      chunk.copyTo(buffer);
-
-      await this.outMp4!.writeSample(buffer, chunk.type === "key");
-
-      if (this.framesEncoded === this.expectedFrames) {
-        self.clearInterval(this.progressUpdateIntervalHandle!);
-        this.sendProgressUpdate();
-
-        await this.outMp4?.close();
-        this.processResolve!();
-      } else {
-        this.decodeNextSamples();
-      }
+    const buffer = new ArrayBuffer(chunk.byteLength);
+    chunk.copyTo(buffer);
+    this.encodedFrames.push({
+      data: buffer,
+      sync: chunk.type === "key",
+      timestamp: chunk.timestamp,
     });
+
+    // avcC is only available on the first frame.
+    if (chunk.timestamp === 0) {
+      this.outMp4!.setAvcC(metadata.decoderConfig?.description!);
+    }
   }
 
   private handleDecoderError(e: Error) {
@@ -338,6 +343,7 @@ export class Processor {
   private sendProgressUpdate() {
     this.progressUpdate({
       framesDecoded: this.framesDecoded,
+      framesDecodedMissing: this.framesDecodedMissing,
       framesEncoded: this.framesEncoded,
       queuedForDecode: this.queuedForDecode,
       queuedForEncode: this.queuedForEncode,

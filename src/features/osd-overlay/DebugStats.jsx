@@ -25,12 +25,12 @@ export default function DebugStats(props) {
       name: "Expected Frames",
     },
     {
-      key: "emptyFramesDetected",
-      name: "Empty Frames Detected",
-    },
-    {
       key: "framesDecoded",
       name: "Frames Decoded",
+    },
+    {
+      key: "framesDecodedMissing",
+      name: "Frames Decoded (Missing)",
     },
     {
       key: "framesEncoded",
@@ -107,9 +107,9 @@ export default function DebugStats(props) {
 }
 
 DebugStats.propTypes = {
-  emptyFramesDetected: PropTypes.number,
   expectedFrames: PropTypes.number,
   framesDecoded: PropTypes.number,
+  framesDecodedMissing: PropTypes.number,
   framesEncoded: PropTypes.number,
   inDecoderQueue: PropTypes.number,
   inEncoderQueue: PropTypes.number,
@@ -118,9 +118,9 @@ DebugStats.propTypes = {
 };
 
 DebugStats.defaultProps = {
-  emptyFramesDetected: null,
   expectedFrames: null,
   framesDecoded: null,
+  framesDecodedMissing: null,
   framesEncoded: null,
   inDecoderQueue: null,
   inEncoderQueue: null,

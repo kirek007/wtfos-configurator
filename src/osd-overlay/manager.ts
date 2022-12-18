@@ -6,10 +6,11 @@ export interface VideoWorkerManagerCallbacks {
   onError?: (error: Error) => void;
   onProgressInit: (options: {
     expectedFrames: number;
-    emptyFramesDetected: number;
+
   }) => void;
   onProgressUpdate: (options: {
     framesDecoded?: number;
+    framesDecodedMissing?: number;
     framesEncoded?: number;
     inDecoderQueue?: number;
     inEncoderQueue?: number;
@@ -53,7 +54,6 @@ export default class VideoWorkerManager {
       case VideoWorkerShared.MessageType.PROGRESS_INIT: {
         this.callbacks?.onProgressInit({
           expectedFrames: message.expectedFrames,
-          emptyFramesDetected: message.emptyFramesDetected,
         });
         break;
       }
@@ -62,6 +62,7 @@ export default class VideoWorkerManager {
         this.callbacks?.onProgressUpdate({
           framesDecoded: message.framesDecoded,
           framesEncoded: message.framesEncoded,
+          framesDecodedMissing: message.framesDecodedMissing,
           inDecoderQueue: message.inDecoderQueue,
           inEncoderQueue: message.inEncoderQueue,
           preview: message.preview,
