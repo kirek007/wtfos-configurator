@@ -186,9 +186,9 @@ export default function Tiles() {
         xs={12}
       >
         <Tile
-          description="Got some sweet DVR? Use this to overlay your recorded OSD on top of it!"
+          description={t("tileOsdOverlayDescription")}
           linkTo="osd-overlay"
-          title="OSD Overlay"
+          title={t("tileOsdOverlayTitle")}
         >
           <DvrIcon fontSize="large" />
         </Tile>

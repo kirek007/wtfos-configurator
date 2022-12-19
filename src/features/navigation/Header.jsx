@@ -199,7 +199,7 @@ export default function Header() {
               onClick={handleClose}
               to="/osd-overlay"
             >
-              OSD Overlay
+              {t("menuOsdOverlay")}
             </MenuItem>
 
             <MenuItem
