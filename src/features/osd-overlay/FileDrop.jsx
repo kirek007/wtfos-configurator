@@ -16,10 +16,8 @@ import FileDropEntry from "./FileDropEntry";
 
 export function useFileDropState() {
   const [files, setFiles] = React.useState({
-    fontFileHd1: null,
-    fontFileHd2: null,
-    fontFileSd1: null,
-    fontFileSd2: null,
+    fontFileHd: null,
+    fontFileSd: null,
     osdFile: null,
     videoFile: null,
   });
@@ -55,19 +53,11 @@ export default function FileDrop(props) {
           changedFiles.osdFile = file;
           break;
 
-        case "bin":
-          if (name.includes("hd")) {
-            if (name.includes("_2")) {
-              changedFiles.fontFileHd2 = file;
-            } else {
-              changedFiles.fontFileHd1 = file;
-            }
+        case "png":
+          if (name.includes("36")) {
+            changedFiles.fontFileHd = file;
           } else {
-            if (name.includes("_2")) {
-              changedFiles.fontFileSd2 = file;
-            } else {
-              changedFiles.fontFileSd1 = file;
-            }
+              changedFiles.fontFileSd = file;
           }
           break;
 
@@ -131,7 +121,7 @@ export default function FileDrop(props) {
       }}
     >
       <input
-        accept=".mp4,.osd,.bin"
+        accept=".mp4,.osd,.png"
         multiple
         onChange={handleFileChange}
         ref={inputRef}
@@ -157,27 +147,15 @@ export default function FileDrop(props) {
         />
 
         <FileDropEntry
-          file={files.fontFileSd1}
+          file={files.fontFileSd}
           icon={FontIcon}
           label={t("fileDropFontSd1")}
         />
 
         <FileDropEntry
-          file={files.fontFileSd2}
-          icon={FontIcon}
-          label={t("fileDropFontSd2")}
-        />
-
-        <FileDropEntry
-          file={files.fontFileHd1}
+          file={files.fontFileHd}
           icon={FontIcon}
           label={t("fileDropFontHd1")}
-        />
-
-        <FileDropEntry
-          file={files.fontFileHd2}
-          icon={FontIcon}
-          label={t("fileDropFontHd2")}
         />
       </Stack>
     </Paper>

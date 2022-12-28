@@ -47,6 +47,11 @@ export class VideoWorker {
     outHandle: FileSystemFileHandle,
   }) {
     this.osdReader = await OsdReader.fromFile(options.osdFile);
+
+    this.postMessage({
+      type: VideoWorkerShared.MessageType.COMPLETE,
+    });
+
     this.fontPack = await Font.fromFiles(options.fontFiles);
 
     const { width, height } = await this.processor.open(options.videoFile, options.outHandle);
@@ -55,9 +60,9 @@ export class VideoWorker {
       this.wide = true;
     }
 
-    if (this.osdReader!.header.config.fontWidth === 24) {
-      this.hd = true;
-    }
+    //TODO: Test if sd 
+    this.hd = true;
+
 
     let outWidth: number;
     let outHeight: number;
@@ -72,11 +77,10 @@ export class VideoWorker {
     this.outWidth = outWidth;
     this.outHeight = outHeight;
 
+    //TODO: Test if sd
     this.osdCanvas = new OffscreenCanvas(
-      this.osdReader!.header.config.fontWidth *
-        this.osdReader!.header.config.charWidth,
-      this.osdReader!.header.config.fontHeight *
-        this.osdReader!.header.config.charHeight
+      1920,
+      1080
     );
     this.osdCtx = this.osdCanvas.getContext("2d")!;
 
@@ -124,10 +128,11 @@ export class VideoWorker {
     if (this.lastOsdIndex < this.osdReader!.frames.length - 1) {
       const nextOsdIndex = this.lastOsdIndex + 1;
       const nextOsdFrame = this.osdReader!.frames[nextOsdIndex];
-
-      if (frameIndex >= nextOsdFrame.frameNumber) {
-        this.lastOsdIndex = nextOsdIndex;
-      }
+      
+      // Todo: Check last frame
+      // if (frameIndex >= nextOsdFrame.frameNumber) {
+      //   this.lastOsdIndex = nextOsdIndex;
+      // }
     }
 
     const osdFrame = this.osdReader!.frames[this.lastOsdIndex];
@@ -148,11 +153,11 @@ export class VideoWorker {
               ? this.fontPack!.sd1
               : this.fontPack!.sd2;
         }
-
+        // Todo: read selected font size
         osdCtx.drawImage(
           font.getTile(osdFrameChar % TILES_PER_PAGE),
-          x * this.osdReader!.header.config.fontWidth,
-          y * this.osdReader!.header.config.fontHeight
+          x * 36,
+          y * 54
         );
       }
     }

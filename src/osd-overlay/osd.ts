@@ -1,9 +1,8 @@
 import { StreamDataView } from "stream-data-view";
 
 interface OsdHeader {
-  magic: string;
-  version: number;
-  config: OsdConfig;
+  software: string;
+  magic: Uint8Array;
 }
 
 interface OsdConfig {
@@ -17,9 +16,8 @@ interface OsdConfig {
 }
 
 interface OsdFrame {
-  frameNumber: number;
-  frameSize: number;
-  frameData: Uint16Array;
+  frameTime: number;
+  frameData: Uint8Array;
 }
 
 export class OsdReader {
@@ -27,35 +25,19 @@ export class OsdReader {
   readonly frames: OsdFrame[] = [];
 
   constructor(data: ArrayBuffer) {
-    const stream = new StreamDataView(data);
+    const stream = new StreamDataView(data, false);
     this.header = {
-      magic: stream.getNextString(7),
-      version: stream.getNextUint16(),
-      config: {
-        charWidth: stream.getNextUint8(),
-        charHeight: stream.getNextUint8(),
-        fontWidth: stream.getNextUint8(),
-        fontHeight: stream.getNextUint8(),
-        xOffset: stream.getNextUint16(),
-        yOffset: stream.getNextUint16(),
-        fontVariant: stream.getNextUint8(),
-      },
+      software: stream.getNextString(4),
+      magic: stream.getNextBytes(36),
     };
-
-    if (this.header.config.charWidth === 31) {
-      this.header.config.charWidth = 30;
-    }
 
     while (stream.getOffset() < data.byteLength) {
       try {
-        const frameNumber = stream.getNextUint32();
-        const frameSize = stream.getNextUint32();
-        const frameData = new Uint16Array(data, stream.getOffset(), frameSize);
-        stream.setOffset(stream.getOffset() + frameSize * 2);
+        const frameTime = stream.getNextUint32()
+        const frameData = stream.getNextBytes(2120)
 
         this.frames.push({
-          frameNumber,
-          frameSize,
+          frameTime,
           frameData,
         });
       } catch (e) {

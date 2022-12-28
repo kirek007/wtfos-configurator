@@ -55,15 +55,16 @@ export default function OsdOverlay() {
 
   const [error, setError] = React.useState(null);
 
-  const startEnabled = (
-    videoFile &&
-    osdFile &&
-    fontFiles.sd1 &&
-    fontFiles.sd2 &&
-    fontFiles.hd1 &&
-    fontFiles.hd2 &&
-    !inProgress
-  );
+  const startEnabled = true;
+  // (
+  //   videoFile &&
+  //   osdFile &&
+  //   fontFiles.sd1 &&
+  //   fontFiles.sd2 &&
+  //   fontFiles.hd1 &&
+  //   fontFiles.hd2 &&
+  //   !inProgress
+  // );
   const progressValue = progressMax ? (progress / progressMax) * 100 : 0;
 
   React.useEffect(() => {
