@@ -48,11 +48,12 @@ export class VideoWorker {
   }) {
     this.osdReader = await OsdReader.fromFile(options.osdFile);
 
+    this.fontPack = await Font.fromFiles(options.fontFiles);
+
     this.postMessage({
       type: VideoWorkerShared.MessageType.COMPLETE,
     });
 
-    this.fontPack = await Font.fromFiles(options.fontFiles);
 
     const { width, height } = await this.processor.open(options.videoFile, options.outHandle);
 
@@ -143,15 +144,9 @@ export class VideoWorker {
 
         let font: Font;
         if (this.hd) {
-          font =
-            osdFrameChar < TILES_PER_PAGE
-              ? this.fontPack!.hd1
-              : this.fontPack!.hd2;
+          font =this.fontPack!.hd
         } else {
-          font =
-            osdFrameChar < TILES_PER_PAGE
-              ? this.fontPack!.sd1
-              : this.fontPack!.sd2;
+          font =this.fontPack!.sd
         }
         // Todo: read selected font size
         osdCtx.drawImage(

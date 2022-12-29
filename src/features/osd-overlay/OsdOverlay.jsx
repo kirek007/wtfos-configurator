@@ -30,10 +30,8 @@ export default function OsdOverlay() {
   const videoFile = files.videoFile;
   const osdFile = files.osdFile;
   const fontFiles = React.useMemo(() => ({
-    sd1: files.fontFileSd1,
-    sd2: files.fontFileSd2,
-    hd1: files.fontFileHd1,
-    hd2: files.fontFileHd2,
+    sd: files.fontFileSd,
+    hd: files.fontFileHd,
   }), [files]);
 
   const [progress, setProgress] = React.useState(0);

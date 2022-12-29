@@ -7,17 +7,13 @@ export const HD_TILE_HEIGHT = 18 * 2;
 export const TILES_PER_PAGE = 256;
 
 export interface FontPack {
-  sd1: Font;
-  sd2: Font;
-  hd1: Font;
-  hd2: Font;
+  sd: Font;
+  hd: Font;
 }
 
 export interface FontPackFiles {
-  sd1: File;
-  sd2: File;
-  hd1: File;
-  hd2: File;
+  sd: File;
+  hd: File;
 }
 
 export class Font {
@@ -35,21 +31,18 @@ export class Font {
 
   static async fromFile(file: File): Promise<Font> {
     const data = await file.arrayBuffer();
-    const isHd = file.name.includes("hd");
+    const isHd = file.name.includes("36");
 
     const tileWidth = isHd ? HD_TILE_WIDTH : SD_TILE_WIDTH;
     const tileHeight = isHd ? HD_TILE_HEIGHT : SD_TILE_HEIGHT;
 
     const tiles: ImageBitmap[] = [];
     for (let tileIndex = 0; tileIndex < TILES_PER_PAGE; tileIndex++) {
-      const pixData = new Uint8ClampedArray(
-        data,
-        tileIndex * tileWidth * tileHeight * 4,
-        tileWidth * tileHeight * 4
-      );
 
-      const imageData = new ImageData(pixData, tileWidth, tileHeight);
-      const imageBitmap = await createImageBitmap(imageData);
+      const tileY = tileIndex * tileHeight 
+      const tileY2 = tileY + tileHeight
+
+      const imageBitmap = await createImageBitmap(file, 0, tileY, tileWidth, tileY2);
       tiles.push(imageBitmap);
     }
 
@@ -58,10 +51,8 @@ export class Font {
 
   static async fromFiles(files: FontPackFiles): Promise<FontPack> {
     return {
-      sd1: await Font.fromFile(files.sd1),
-      sd2: await Font.fromFile(files.sd2),
-      hd1: await Font.fromFile(files.hd1),
-      hd2: await Font.fromFile(files.hd2),
+      sd: await Font.fromFile(files.sd),
+      hd: await Font.fromFile(files.hd),
     };
   }
 }
